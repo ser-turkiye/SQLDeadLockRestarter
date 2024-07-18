@@ -9,14 +9,10 @@ import com.ser.blueline.metaDataComponents.IArchiveFolderClass;
 import com.ser.foldermanager.IFolder;
 import com.ser.foldermanager.IFolderConnection;
 import de.ser.doxis4.agentserver.UnifiedAgent;
-import org.json.JSONObject;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.sql.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -24,8 +20,6 @@ import java.util.List;
 public class RestartAgentJob extends UnifiedAgent {
     Logger log = LogManager.getLogger();
     ProcessHelper processHelper;
-    JSONObject config;
-    Connection conn;
     List<String> types = new ArrayList<>();
     @Override
     protected Object execute() {
@@ -40,20 +34,45 @@ public class RestartAgentJob extends UnifiedAgent {
             processHelper = new ProcessHelper(Utils.session);
 
             IAgentJobQuery jobq = Utils.server.createAgentJobQuery(Utils.session);
-            jobq.setSearchStatement("AGENT_JOB_STATUS = 'EXECUTION_FAILED'");
             //jobq.setSearchStatement("");
-            //jobq.setStartDate(Utils.todayMidnight());
+            jobq.setSearchStatement("AGENT_JOB_STATUS IN ('EXECUTION_FAILED', 'STARTED')");
+
             jobq.setEndDate(new Date());
             jobq.setHitLimit(10);
             IAgentJobQueryResult jres = jobq.query();
             List<IAgentJob> list = jres.getResults();
             int jcnt = 0;
-            while(list.size() > 0){
+            while(!list.isEmpty()){
                 for(IAgentJob ajob : list){
-                    //if(ajob.getAgentJobStatus() != AgentJobStatus.EXECUTION_FAILED){continue;}
-                    System.out.println("[" + (jcnt++) + "] -> " + ajob.getAgentDefinitionID());
-                    System.out.println("      ---> " + ajob.getAgentExecutionResult());
-                    ajob.restart();
+                    boolean rstr = false;
+
+                    if(ajob.getAgentJobStatus() == AgentJobStatus.EXECUTION_FAILED) {
+                        if (ajob.getAgentExecutionResult().toString().contains("deadlocked")) {
+                            rstr = true;
+                        }
+                    }
+                    if(ajob.getAgentJobStatus() == AgentJobStatus.STARTED) {
+                        if(ajob.getCreationDate() == null
+                        || Utils.diffDateTime(ajob.getCreationDate(), new Date(), "seconds") > 60){
+                            rstr = true;
+                        }
+                    }
+
+
+                    if(!rstr){continue;}
+
+                    log.info("[" + (jcnt++) + "] -> " + ajob.getAgentDefinitionID());
+                    log.info("      ---> result : " + ajob.getAgentExecutionResult());
+
+                    try {
+                        if(!ajob.restart()){throw new Exception("Job-Restart error ...");}
+                    } catch(Exception ex){
+                        log.info("      ---> exception : " + ex.getMessage());
+                        continue;
+                    }
+
+
+                    log.info("      ---> completed.");
                 }
                 list = jres.fetchNextResults();
             }

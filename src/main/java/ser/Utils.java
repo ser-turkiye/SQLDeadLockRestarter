@@ -14,9 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -28,16 +25,28 @@ public class Utils {
     static IDocumentServer server = null;
     static IBpmService bpm;
     static JSONObject sysConfigs;
+
+    static long diffDateTime(Date d1, Date d2, String type){
+        long rtrn = (d2.getTime()-d1.getTime());
+        if(type.equals("seconds")){
+            rtrn = rtrn/1000L;
+        }
+        if(type.equals("minutes")){
+            rtrn = rtrn/(1000L*60L);
+        }
+        if(type.equals("hours")){
+            rtrn = rtrn/(1000L*60L*60L);
+        }
+        if(type.equals("days")){
+            rtrn = rtrn/(1000L*60L*60L*24L);
+        }
+        if(type.equals("weeks")){
+            rtrn = rtrn/(1000L*60L*60L*24L*7L);
+        }
+        return rtrn;
+    }
     static void loadDirectory(String path) {
         (new File(path)).mkdir();
-    }
-
-    static Date todayMidnight(){
-        Date date = new Date();
-        Instant inst = date.toInstant();
-        LocalDate localDate = inst.atZone(ZoneId.systemDefault()).toLocalDate();
-        Instant dayInst = localDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
-        return Date.from(dayInst);
     }
     static void loadSystemConfig() throws Exception {
         if(session == null || server == null){return;}
